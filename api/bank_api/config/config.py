@@ -1,0 +1,5 @@
+DBHOST = 'localhost'
+DBPORT = '5432'
+DBUSER = 'postgres'
+DBPASS = 'postgres'
+DBNAME = 'bank_payments'
