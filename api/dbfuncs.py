@@ -1,8 +1,8 @@
 import psycopg2
 import psycopg2.extras
 from contextlib import contextmanager
-import os
-from config import config as conf
+import datetime
+from api.config import config as conf
 
 
 # Утилиты для работы с БД
@@ -15,7 +15,8 @@ def get_db_connection():
             port=conf.DBPORT,
             user=conf.DBUSER,
             password=conf.DBPASS,
-            database=conf.DBNAME
+            database=conf.DBNAME,
+            client_encoding='UTF8'
         )
         yield conn
     except Exception as e:
@@ -56,6 +57,13 @@ class PaymentRepository:
         
         result = self.cursor.fetchone()
         return result if result else None  
+
+    def get_by_id(self, payment_id: str) -> dict:
+        self.cursor.execute(
+            "SELECT * FROM payments WHERE id = %s",
+            (payment_id,)
+        )
+        return self.cursor.fetchone()
     
     def get_by_order(self, order_id: str) -> list:
         self.cursor.execute(
@@ -72,6 +80,15 @@ class PaymentRepository:
         """, (order_id,))
         result = self.cursor.fetchone()
         return result[0] if result else None
+    
+    def get_pending_acquiring_payments(self, acquiring_type_id: int, pending_status_id: int, older_than: datetime) -> list:
+        self.cursor.execute("""
+            SELECT * FROM payments 
+            WHERE status_id = %s 
+            AND payment_type_id = %s
+            AND created_at < %s
+        """, (pending_status_id, acquiring_type_id, older_than))
+        return self.cursor.fetchall()
     
 class OrderStatusRepository:
 
@@ -156,6 +173,14 @@ class PaymentTypeRepository:
         self.cursor.execute(
             "SELECT id FROM payment_types WHERE name = %s",
             (name,)
+        )
+        result = self.cursor.fetchone()
+        return result[0] if result else None
+
+    def get_by_id(self, type_id: int) -> str:
+        self.cursor.execute(
+            "SELECT name FROM payment_types WHERE id = %s",
+            (type_id,)
         )
         result = self.cursor.fetchone()
         return result[0] if result else None

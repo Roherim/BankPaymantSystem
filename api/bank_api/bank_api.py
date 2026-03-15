@@ -1,7 +1,7 @@
 from fastapi import HTTPException
-from datamodels import CreateBankPaymentRequest, CreateBankPaymentResponse, CheckBankPaymentResponse, CheckBankPaymentRequest
+from api.datamodels import CreateBankPaymentRequest, CreateBankPaymentResponse, CheckBankPaymentResponse, CheckBankPaymentRequest
 import httpx
-from config import config as conf
+from api.config import config as conf
 
 class BankAPI:
     def __init__(self):
@@ -15,7 +15,11 @@ class BankAPI:
             try:
                 response = await client.post(post_url, headers=headers, json=data.dict(), timeout=20)
                 response.raise_for_status()
-                return CreateBankPaymentResponse(**response.json())
+                response_data = response.json()
+                return CreateBankPaymentResponse(
+                    bank_payment_id=response_data.get("payment_id"),
+                    status=response_data.get("status", "pending")
+                )
             except httpx.TimeoutException:
                 raise HTTPException(status_code=504, detail="Bank timeout")
             except httpx.HTTPStatusError as e:
@@ -28,11 +32,17 @@ class BankAPI:
             check_url = self.url + conf.AQUIRING_CHECK_URL
             data = CheckBankPaymentRequest(payment_id=external_id)
             try:
-                response = await client.get(check_url, json=data.dict(), timeout=10)
+                response = await client.post(check_url, json=data.dict(), timeout=10)
                 if response.status_code == 404:
                     raise HTTPException(status_code=404, detail="Payment not found in bank")
                 response.raise_for_status()
-                return CheckBankPaymentResponse(**response.json())
+                response_data = response.json()
+                return CheckBankPaymentResponse(
+                    bank_payment_id=response_data.get("payment_id"),
+                    status=response_data.get("status"),
+                    amount=response_data.get("amount"),
+                    payment_date=response_data.get("payment_date")
+                )
             except httpx.TimeoutException:
                 raise HTTPException(status_code=504, detail="Bank timeout")
             except httpx.HTTPStatusError as e:
